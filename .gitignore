@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+
+# Environment Variables & Secrets
+.env
+.streamlit/secrets.toml
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Agent Artifacts
+.gemini/
+
+# Optional: Huge PDF if not needed in repo (though user might want it)
+PEATA.pdf

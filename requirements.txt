@@ -1,0 +1,14 @@
+langchain
+langchain-anthropic
+langchain-community
+faiss-cpu
+pypdf
+streamlit
+python-dotenv
+sentence-transformers
+unstructured
+networkx
+llama-parse
+llama-index-core
+lark
+streamlit-feedback
