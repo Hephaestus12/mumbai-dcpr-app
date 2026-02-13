@@ -11,7 +11,21 @@ if hasattr(st, "secrets"):
 
 from streamlit_feedback import streamlit_feedback
 from core.retrieval import get_rag_chain
+
 import time
+import json
+import datetime
+
+# --- LOGGING SETUP ---
+def log_event(session_id, event_type, data=None):
+    """Log an event in JSON format."""
+    log_entry = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "session_id": session_id,
+        "event_type": event_type,
+        "data": data or {}
+    }
+    print(json.dumps(log_entry))
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -58,7 +72,7 @@ with st.sidebar:
     st.markdown("### ⚠️ Disclaimer")
     st.warning(
         "This AI tool is for **informational purposes only**.\n\n"
-        "Always consult the official [Gazette of DCPR 2034](https://peata.in/dcpr-2034/) "
+        "Always consult the official [Gazette of DCPR 2034](https://mchi.net/wp-content/uploads/2022/07/comprehensive-dcpr-2034-peata.pdf) "
         "or a licensed architect/surveyor for legal validation."
     )
     
@@ -123,7 +137,7 @@ if prompt := st.chat_input("Ask a question about Mumbai Development Control Regu
         with st.spinner("Analyzing regulations..."):
             try:
                 # Log the question start
-                print(f"SESSION: {st.session_state.session_id} | USER: {prompt}")
+                log_event(st.session_state.session_id, "user_query", {"input": prompt})
                 
                 response = rag_chain.invoke({"input": prompt})
                 answer = response["answer"]
@@ -151,7 +165,7 @@ if prompt := st.chat_input("Ask a question about Mumbai Development Control Regu
                         })
                 
                 # Log the answer
-                print(f"SESSION: {st.session_state.session_id} | AI: {answer}")
+                log_event(st.session_state.session_id, "ai_response", {"answer": answer, "sources_count": len(sources_data)})
                 
                 # Save to history
                 st.session_state.messages.append({
@@ -167,7 +181,7 @@ if prompt := st.chat_input("Ask a question about Mumbai Development Control Regu
                 
             except Exception as e:
                 st.error(f"Error: {e}")
-                print(f"SESSION: {st.session_state.session_id} | ERROR: {e}")
+                log_event(st.session_state.session_id, "error", {"error_message": str(e)})
 
 # Feedback for the LATEST assistant message (outside the loop to ensure it renders at bottom)
 if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "assistant":
@@ -180,5 +194,5 @@ if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] 
     if feedback:
         score = feedback["score"] # '👍' or '👎' usually, or mapped values
         text = feedback.get("text", "")
-        print(f"SESSION: {st.session_state.session_id} | FEEDBACK: {score} | COMMENTS: {text}")
+        log_event(st.session_state.session_id, "user_feedback", {"score": score, "comments": text})
         st.toast("Thank you for your feedback!", icon="🙏")
