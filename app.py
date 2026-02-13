@@ -76,7 +76,7 @@ def check_password():
             st.text_input(
                 "Enter Access Code:", type="password", on_change=password_entered, key="password"
             )
-            st.caption("Built by Tej Sukhatme")
+            # st.caption("Built by Tej Sukhatme")
         return False
     elif not st.session_state["password_correct"]:
         # Password incorrect, show input + error.
@@ -92,7 +92,7 @@ def check_password():
                 "Enter Access Code:", type="password", on_change=password_entered, key="password"
             )
             st.error("Access Code incorrect")
-            st.caption("Built by Tej Sukhatme")
+            # st.caption("Built by Tej Sukhatme")
         return False
     else:
         # Password correct.
@@ -148,7 +148,7 @@ with st.sidebar:
 st.image("assets/heading.png", width="stretch")
 
 st.header("DCPR 2034 Chat Assistant")
-st.caption("Built by Tej Sukhatme")
+# st.caption("Built by Tej Sukhatme")
 
 
 
