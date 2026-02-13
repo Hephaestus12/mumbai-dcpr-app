@@ -7,7 +7,8 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.chains import create_history_aware_retriever
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import CrossEncoderReranker
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
@@ -112,16 +113,41 @@ def get_rag_chain():
         base_retriever=self_query_retriever
     )
 
-    # Create Prompt
-    prompt = ChatPromptTemplate.from_messages(
+    # --- HISTORY AWARE RETRIEVER ---
+    
+    # Contextualize question prompt
+    # Rephrases the latest user question using the chat history to make it a standalone question
+    contextualize_q_system_prompt = (
+        "Given a chat history and the latest user question "
+        "which might reference context in the chat history, "
+        "formulate a standalone question which can be understood "
+        "without the chat history. Do NOT answer the question, "
+        "just reformulate it if needed and otherwise return it as is."
+    )
+    
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    
+    history_aware_retriever = create_history_aware_retriever(
+        llm, compression_retriever, contextualize_q_prompt
+    )
+
+    # --- QA CHAIN ---
+    qa_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", SYSTEM_PROMPT),
+            MessagesPlaceholder("chat_history"),
             ("human", "{input}"),
         ]
     )
 
     # Create Chain
-    question_answer_chain = create_stuff_documents_chain(llm, prompt)
-    rag_chain = create_retrieval_chain(compression_retriever, question_answer_chain)
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
     return rag_chain

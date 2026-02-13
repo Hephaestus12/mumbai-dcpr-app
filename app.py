@@ -11,10 +11,11 @@ if hasattr(st, "secrets"):
 
 from streamlit_feedback import streamlit_feedback
 from core.retrieval import get_rag_chain
-
+from langchain_core.messages import HumanMessage, AIMessage
 import time
 import json
 import datetime
+import uuid
 
 # --- LOGGING SETUP ---
 def log_event(session_id, event_type, data=None):
@@ -30,9 +31,25 @@ def log_event(session_id, event_type, data=None):
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="DCPR 2034 Bot", 
-    page_icon="🏗️",
+    page_icon="📓",
     layout="wide"
 )
+
+# --- CUSTOM CSS ---
+st.markdown("""
+<style>
+    /* Override primary button color in sidebar to be Grey */
+    section[data-testid="stSidebar"] button[kind="primary"] {
+        background-color: #607D8B !important;
+        border-color: #607D8B !important;
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] button[kind="primary"]:hover {
+        background-color: #455A64 !important;
+        border-color: #455A64 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- SECURITY & LOGIN ---
 def check_password():
@@ -40,7 +57,7 @@ def check_password():
 
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == st.secrets["ACCESS_CODE"]:
+        if "password" in st.session_state and st.session_state["password"] == st.secrets["ACCESS_CODE"]:
             st.session_state["password_correct"] = True
             del st.session_state["password"]  # don't store password
         else:
@@ -48,16 +65,34 @@ def check_password():
 
     if "password_correct" not in st.session_state:
         # First run, show input for password.
-        st.text_input(
-            "Enter Access Code to use the bot:", type="password", on_change=password_entered, key="password"
-        )
+        col_img1, col_img2, col_img3 = st.columns([1, 1, 1])
+        with col_img2:
+            st.image("assets/heading.png", width="stretch")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("### Access Restricted")
+            st.write("This is a private tool for testing purposes only. If you have been given the link, please reach out to the person who shared it for the access code.")
+            st.text_input(
+                "Enter Access Code:", type="password", on_change=password_entered, key="password"
+            )
+            st.caption("Built by Tej Sukhatme")
         return False
     elif not st.session_state["password_correct"]:
         # Password incorrect, show input + error.
-        st.text_input(
-            "Enter Access Code to use the bot:", type="password", on_change=password_entered, key="password"
-        )
-        st.error("😕 Access Code incorrect")
+        col_img1, col_img2, col_img3 = st.columns([1, 1, 1])
+        with col_img2:
+            st.image("assets/heading.png", width="stretch")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("### Access Restricted")
+            st.write("This is a private tool for testing purposes only. If you have been given the link, please reach out to the person who shared it for the access code.")
+            st.text_input(
+                "Enter Access Code:", type="password", on_change=password_entered, key="password"
+            )
+            st.error("Access Code incorrect")
+            st.caption("Built by Tej Sukhatme")
         return False
     else:
         # Password correct.
@@ -66,9 +101,28 @@ def check_password():
 if not check_password():
     st.stop()  # Do not run the rest of the app if not authenticated
 
+# --- CHAT STATE INIT ---
+# Initialize chat history state
+if "chats" not in st.session_state:
+    st.session_state.chats = {}
+
+if "current_chat_id" not in st.session_state:
+    new_chat_id = str(uuid.uuid4())
+    st.session_state.chats[new_chat_id] = {
+        "messages": [],
+        "title": f"Chat {datetime.datetime.now().strftime('%H:%M')}"
+    }
+    st.session_state.current_chat_id = new_chat_id
+
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(time.time())
+
+def get_current_chat():
+    return st.session_state.chats[st.session_state.current_chat_id]
+
 # --- SIDEBAR & DISCLAIMER ---
 with st.sidebar:
-    st.header("🏗️ Mumbai DCPR 2034 Bot")
+    st.header("Mumbai DCPR 2034 Chat Assistant")
     st.markdown("### ⚠️ Disclaimer")
     st.warning(
         "This AI tool is for **informational purposes only**.\n\n"
@@ -86,20 +140,43 @@ with st.sidebar:
         "- **Definitions** (e.g., *'What is a habitable room?'*)"
     )
     st.markdown("---")
-    if st.button("Clear Chat History"):
-        st.session_state.messages = []
+    if st.button("Clear Chat History", use_container_width=True):
+        get_current_chat()["messages"] = []
         st.rerun()
 
 # --- MAIN APP UI ---
-st.title("🏗️ DCPR 2034 Chat Assistant")
+st.image("assets/heading.png", width="stretch")
 
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.header("DCPR 2034 Chat Assistant")
+st.caption("Built by Tej Sukhatme")
 
-# Initialize session ID for logging
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(time.time())
+
+
+# --- SIDEBAR CHAT HISTORY ---
+with st.sidebar:
+    st.markdown("---")
+    if st.button("➕ New Chat", use_container_width=True):
+        new_chat_id = str(uuid.uuid4())
+        st.session_state.chats[new_chat_id] = {
+            "messages": [],
+            "title": f"Chat {datetime.datetime.now().strftime('%H:%M')}"
+        }
+        st.session_state.current_chat_id = new_chat_id
+        st.rerun()
+    
+    st.markdown("### Recent Chats")
+    # Display chat history buttons
+    for chat_id, chat_data in list(st.session_state.chats.items())[::-1]: # Reverse order
+        # Simple title based on first message or timestamp
+        if len(chat_data["messages"]) > 0:
+            title = chat_data["messages"][0]["content"][:20] + "..."
+        else:
+            title = chat_data["title"]
+            
+        if st.button(title, key=chat_id, use_container_width=True, 
+                     type="primary" if chat_id == st.session_state.current_chat_id else "secondary"):
+            st.session_state.current_chat_id = chat_id
+            st.rerun()
 
 # Load RAG Chain
 @st.cache_resource
@@ -113,7 +190,8 @@ except Exception as e:
     st.stop()
 
 # Display chat messages from history on app rerun
-for n, message in enumerate(st.session_state.messages):
+current_chat = get_current_chat()
+for n, message in enumerate(current_chat["messages"]):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         
@@ -130,7 +208,7 @@ for n, message in enumerate(st.session_state.messages):
 if prompt := st.chat_input("Ask a question about Mumbai Development Control Regulations..."):
     # Display user message
     st.chat_message("user").markdown(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    current_chat["messages"].append({"role": "user", "content": prompt})
 
     # Generate response
     with st.chat_message("assistant"):
@@ -139,7 +217,15 @@ if prompt := st.chat_input("Ask a question about Mumbai Development Control Regu
                 # Log the question start
                 log_event(st.session_state.session_id, "user_query", {"input": prompt})
                 
-                response = rag_chain.invoke({"input": prompt})
+                # Format history for LangChain
+                chat_history = []
+                for msg in current_chat["messages"][:-1]: # Exclude the just added user message
+                    if msg["role"] == "user":
+                        chat_history.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        chat_history.append(AIMessage(content=msg["content"]))
+
+                response = rag_chain.invoke({"input": prompt, "chat_history": chat_history})
                 answer = response["answer"]
                 documents = response["context"]
                 
@@ -168,7 +254,7 @@ if prompt := st.chat_input("Ask a question about Mumbai Development Control Regu
                 log_event(st.session_state.session_id, "ai_response", {"answer": answer, "sources_count": len(sources_data)})
                 
                 # Save to history
-                st.session_state.messages.append({
+                current_chat["messages"].append({
                     "role": "assistant", 
                     "content": answer,
                     "sources": sources_data
@@ -184,11 +270,11 @@ if prompt := st.chat_input("Ask a question about Mumbai Development Control Regu
                 log_event(st.session_state.session_id, "error", {"error_message": str(e)})
 
 # Feedback for the LATEST assistant message (outside the loop to ensure it renders at bottom)
-if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "assistant":
+if len(current_chat["messages"]) > 0 and current_chat["messages"][-1]["role"] == "assistant":
     feedback = streamlit_feedback(
         feedback_type="thumbs",
         optional_text_label="[Optional] Please provide explanation",
-        key=f"feedback_{len(st.session_state.messages)}",
+        key=f"feedback_{len(current_chat['messages'])}",
     )
     
     if feedback:
